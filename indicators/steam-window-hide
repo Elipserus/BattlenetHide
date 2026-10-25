@@ -1,0 +1,59 @@
+#!/bin/bash
+# Hide or show the Steam client windows.
+#
+#   steam-window-hide status   prints "<running> <hidden>", e.g. "1 0"
+#                              running: 1 if a Steam window is open, else 0
+#                              hidden:  1 if they are parked in the hidden workspace
+#   steam-window-hide hide     move them to the hidden workspace
+#   steam-window-hide show     bring them back to the current workspace
+#   steam-window-hide toggle   flip between the two
+
+HIDDEN="special:steam"
+
+# Every Steam client window (library, friends list, chats) has the class
+# steam; games run as steam_app_<id>, so an exact match leaves them alone.
+windows() {
+  hyprctl clients -j 2>/dev/null | jq -r --arg ws "$HIDDEN" '
+    .[] | select(.class == "steam")
+        | "\(.address) \(.workspace.name == $ws)"'
+}
+
+move() {
+  hyprctl dispatch "hl.dsp.window.move({ workspace = \"$2\", follow = false, window = \"address:$1\" })" >/dev/null 2>&1 ||
+    hyprctl dispatch movetoworkspacesilent "$2,address:$1" >/dev/null
+}
+
+hide() {
+  local addr hidden
+  while read -r addr hidden; do
+    [[ $hidden == false ]] && move "$addr" "$HIDDEN"
+  done < <(windows)
+}
+
+show() {
+  local addr hidden last="" ws
+  ws=$(hyprctl activeworkspace -j | jq -r '.id')
+  while read -r addr hidden; do
+    [[ $hidden == true ]] && move "$addr" "$ws" && last=$addr
+  done < <(windows)
+  [[ -n $last ]] && hyprctl dispatch "hl.dsp.focus({ window = \"address:$last\" })" >/dev/null 2>&1
+}
+
+case "$1" in
+  status)
+    list=$(windows)
+    if [[ -z $list ]]; then echo "0 0"
+    elif grep -q ' true$' <<<"$list"; then echo "1 1"
+    else echo "1 0"
+    fi
+    ;;
+  hide) hide ;;
+  show) show ;;
+  toggle)
+    if [[ $("$0" status) == "1 1" ]]; then show; else hide; fi
+    ;;
+  *)
+    echo "Usage: steam-window-hide {status|hide|show|toggle}" >&2
+    exit 1
+    ;;
+esac
