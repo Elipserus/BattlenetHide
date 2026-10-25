@@ -1,9 +1,10 @@
 #!/bin/bash
 # Add the launcher indicators to the Omarchy bar's indicator group.
 #
-#   ./install              Battle.net and Steam
+#   ./install              Battle.net, Steam and Spotify
 #   ./install battlenet    only Battle.net
 #   ./install steam        only Steam
+#   ./install spotify      only Spotify
 #
 # The indicator group (dictation, screen recording, ...) is the built-in
 # omarchy.indicators widget, which only loads indicators from its own folder.
@@ -19,18 +20,21 @@ CLONE="$HOME/.config/omarchy/plugins/$USER.indicators"
 declare -A FILES=(
   [Battlenet]="Battlenet.qml BattlenetState.qml battlenet-hide"
   [Steam]="Steam.qml SteamState.qml steam-window-hide"
+  [Spotify]="Spotify.qml SpotifyState.qml spotify-hide"
 )
-declare -A LABEL=([Battlenet]="Battle.net" [Steam]="Steam")
+declare -A LABEL=([Battlenet]="Battle.net" [Steam]="Steam" [Spotify]="Spotify")
 declare -A DESCRIPTION=(
   [Battlenet]="Oculta o muestra la ventana de Battle.net"
   [Steam]="Oculta o muestra las ventanas de Steam"
+  [Spotify]="Oculta o muestra la ventana de Spotify"
 )
 
 case "${1:-all}" in
-  all) ids=(Battlenet Steam) ;;
+  all) ids=(Battlenet Steam Spotify) ;;
   battlenet) ids=(Battlenet) ;;
   steam) ids=(Steam) ;;
-  *) echo "Uso: ./install [battlenet|steam]" >&2; exit 1 ;;
+  spotify) ids=(Spotify) ;;
+  *) echo "Uso: ./install [battlenet|steam|spotify]" >&2; exit 1 ;;
 esac
 
 command -v omarchy >/dev/null || { echo "No se encuentra Omarchy" >&2; exit 1; }
