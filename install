@@ -1,0 +1,71 @@
+#!/bin/bash
+# Add the launcher indicators to the Omarchy bar's indicator group.
+#
+#   ./install              Battle.net and Steam
+#   ./install battlenet    only Battle.net
+#   ./install steam        only Steam
+#
+# The indicator group (dictation, screen recording, ...) is the built-in
+# omarchy.indicators widget, which only loads indicators from its own folder.
+# So this clones it into your config with `omarchy plugin clone` (the bar then
+# uses the clone) and drops the chosen indicators in next to the others.
+
+set -euo pipefail
+
+SRC="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/indicators"
+CLONE="$HOME/.config/omarchy/plugins/$USER.indicators"
+
+# Files, label and settings-picker description for each indicator.
+declare -A FILES=(
+  [Battlenet]="Battlenet.qml BattlenetState.qml battlenet-hide"
+  [Steam]="Steam.qml SteamState.qml steam-window-hide"
+)
+declare -A LABEL=([Battlenet]="Battle.net" [Steam]="Steam")
+declare -A DESCRIPTION=(
+  [Battlenet]="Oculta o muestra la ventana de Battle.net"
+  [Steam]="Oculta o muestra las ventanas de Steam"
+)
+
+case "${1:-all}" in
+  all) ids=(Battlenet Steam) ;;
+  battlenet) ids=(Battlenet) ;;
+  steam) ids=(Steam) ;;
+  *) echo "Uso: ./install [battlenet|steam]" >&2; exit 1 ;;
+esac
+
+command -v omarchy >/dev/null || { echo "No se encuentra Omarchy" >&2; exit 1; }
+
+[[ -d $CLONE ]] || omarchy plugin clone omarchy.indicators
+[[ -f $CLONE/Indicators.qml ]] || { echo "No se encuentra el clon de los indicadores en $CLONE" >&2; exit 1; }
+
+for id in "${ids[@]}"; do
+  for file in ${FILES[$id]}; do
+    if [[ $file == *.qml ]]; then mode=644; else mode=755; fi
+    install -m "$mode" "$SRC/$file" "$CLONE/indicators/"
+  done
+
+  # List it first so it sits at the far end of the group.
+  if ! grep -q "\"$id\"" "$CLONE/Indicators.qml"; then
+    sed -i "s/defaultIndicatorEntries: \[ /defaultIndicatorEntries: [ \"$id\", /" "$CLONE/Indicators.qml"
+  fi
+
+  # Offer it in the widget's settings picker too.
+  jq --arg id "$id" --arg label "${LABEL[$id]}" --arg description "${DESCRIPTION[$id]}" '
+    .barWidget.schema[0].options |= ([{value: $id, label: $label, description: $description}] + map(select(.value != $id)))
+  ' "$CLONE/manifest.json" >"$CLONE/manifest.json.tmp"
+  mv "$CLONE/manifest.json.tmp" "$CLONE/manifest.json"
+done
+
+# The state singletons are registered by the folder's qmldir; list whichever
+# ones are installed.
+: >"$CLONE/indicators/qmldir"
+for state in "$CLONE"/indicators/*State.qml; do
+  name=$(basename "$state" .qml)
+  echo "singleton $name 1.0 $name.qml" >>"$CLONE/indicators/qmldir"
+done
+
+# A hot reload can leave the indicator group half drawn; start fresh.
+omarchy restart shell >/dev/null 2>&1 || true
+
+for id in "${ids[@]}"; do echo "Indicador de ${LABEL[$id]} instalado en $CLONE"; done
+echo "Si tu entrada de indicadores en shell.json define \"items\", añade ahí: ${ids[*]}"
