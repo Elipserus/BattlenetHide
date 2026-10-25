@@ -1,0 +1,48 @@
+#!/bin/bash
+# Take the launcher indicators back out of your indicator clone.
+#
+#   ./uninstall              Battle.net and Steam
+#   ./uninstall battlenet    only Battle.net
+#   ./uninstall steam        only Steam
+#
+# The clone itself stays; run `omarchy plugin remove $USER.indicators` to go
+# back to the stock indicators entirely.
+
+set -euo pipefail
+
+CLONE="$HOME/.config/omarchy/plugins/$USER.indicators"
+
+declare -A FILES=(
+  [Battlenet]="Battlenet.qml BattlenetState.qml battlenet-hide"
+  [Steam]="Steam.qml SteamState.qml steam-window-hide"
+)
+declare -A LABEL=([Battlenet]="Battle.net" [Steam]="Steam")
+
+case "${1:-all}" in
+  all) ids=(Battlenet Steam) ;;
+  battlenet) ids=(Battlenet) ;;
+  steam) ids=(Steam) ;;
+  *) echo "Uso: ./uninstall [battlenet|steam]" >&2; exit 1 ;;
+esac
+
+[[ -d $CLONE ]] || { echo "No hay nada que quitar"; exit 0; }
+
+for id in "${ids[@]}"; do
+  for file in ${FILES[$id]}; do rm -f "$CLONE/indicators/$file"; done
+  sed -i "s/\"$id\", //" "$CLONE/Indicators.qml"
+  jq --arg id "$id" '.barWidget.schema[0].options |= map(select(.value != $id))' \
+    "$CLONE/manifest.json" >"$CLONE/manifest.json.tmp"
+  mv "$CLONE/manifest.json.tmp" "$CLONE/manifest.json"
+done
+
+: >"$CLONE/indicators/qmldir"
+for state in "$CLONE"/indicators/*State.qml; do
+  [[ -f $state ]] || continue
+  name=$(basename "$state" .qml)
+  echo "singleton $name 1.0 $name.qml" >>"$CLONE/indicators/qmldir"
+done
+[[ -s $CLONE/indicators/qmldir ]] || rm -f "$CLONE/indicators/qmldir"
+
+omarchy restart shell >/dev/null 2>&1 || true
+
+for id in "${ids[@]}"; do echo "Indicador de ${LABEL[$id]} quitado"; done
