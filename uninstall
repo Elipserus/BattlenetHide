@@ -1,9 +1,10 @@
 #!/bin/bash
 # Take the launcher indicators back out of your indicator clone.
 #
-#   ./uninstall              Battle.net and Steam
+#   ./uninstall              Battle.net, Steam and Spotify
 #   ./uninstall battlenet    only Battle.net
 #   ./uninstall steam        only Steam
+#   ./uninstall spotify      only Spotify
 #
 # The clone itself stays; run `omarchy plugin remove $USER.indicators` to go
 # back to the stock indicators entirely.
@@ -15,14 +16,16 @@ CLONE="$HOME/.config/omarchy/plugins/$USER.indicators"
 declare -A FILES=(
   [Battlenet]="Battlenet.qml BattlenetState.qml battlenet-hide"
   [Steam]="Steam.qml SteamState.qml steam-window-hide"
+  [Spotify]="Spotify.qml SpotifyState.qml spotify-hide"
 )
-declare -A LABEL=([Battlenet]="Battle.net" [Steam]="Steam")
+declare -A LABEL=([Battlenet]="Battle.net" [Steam]="Steam" [Spotify]="Spotify")
 
 case "${1:-all}" in
-  all) ids=(Battlenet Steam) ;;
+  all) ids=(Battlenet Steam Spotify) ;;
   battlenet) ids=(Battlenet) ;;
   steam) ids=(Steam) ;;
-  *) echo "Uso: ./uninstall [battlenet|steam]" >&2; exit 1 ;;
+  spotify) ids=(Spotify) ;;
+  *) echo "Uso: ./uninstall [battlenet|steam|spotify]" >&2; exit 1 ;;
 esac
 
 [[ -d $CLONE ]] || { echo "No hay nada que quitar"; exit 0; }
