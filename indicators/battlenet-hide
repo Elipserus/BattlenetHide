@@ -1,0 +1,59 @@
+#!/bin/bash
+# Hide or show the Battle.net client window.
+#
+#   battlenet-hide status   prints "<running> <hidden>", e.g. "1 0"
+#                           running: 1 if a Battle.net window is open, else 0
+#                           hidden:  1 if it is parked in the hidden workspace
+#   battlenet-hide hide     move it to the hidden workspace
+#   battlenet-hide show     bring it back to the current workspace
+#   battlenet-hide toggle   flip between the two
+
+HIDDEN="special:battlenet"
+
+# Battle.net runs under Proton, and games started from it share the class
+# steam_app_battlenet, so match on the client's own window titles only.
+windows() {
+  hyprctl clients -j 2>/dev/null | jq -r --arg ws "$HIDDEN" '
+    .[] | select(.class == "steam_app_battlenet" and (.title | test("^Battle\\.net")))
+        | "\(.address) \(.workspace.name == $ws)"'
+}
+
+move() {
+  hyprctl dispatch "hl.dsp.window.move({ workspace = \"$2\", follow = false, window = \"address:$1\" })" >/dev/null 2>&1 ||
+    hyprctl dispatch movetoworkspacesilent "$2,address:$1" >/dev/null
+}
+
+hide() {
+  local addr hidden
+  while read -r addr hidden; do
+    [[ $hidden == false ]] && move "$addr" "$HIDDEN"
+  done < <(windows)
+}
+
+show() {
+  local addr hidden last="" ws
+  ws=$(hyprctl activeworkspace -j | jq -r '.id')
+  while read -r addr hidden; do
+    [[ $hidden == true ]] && move "$addr" "$ws" && last=$addr
+  done < <(windows)
+  [[ -n $last ]] && hyprctl dispatch "hl.dsp.focus({ window = \"address:$last\" })" >/dev/null 2>&1
+}
+
+case "$1" in
+  status)
+    list=$(windows)
+    if [[ -z $list ]]; then echo "0 0"
+    elif grep -q ' true$' <<<"$list"; then echo "1 1"
+    else echo "1 0"
+    fi
+    ;;
+  hide) hide ;;
+  show) show ;;
+  toggle)
+    if [[ $("$0" status) == "1 1" ]]; then show; else hide; fi
+    ;;
+  *)
+    echo "Usage: battlenet-hide {status|hide|show|toggle}" >&2
+    exit 1
+    ;;
+esac
